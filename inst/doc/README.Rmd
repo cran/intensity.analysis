@@ -1,0 +1,141 @@
+---
+title: "Intensity analysis of land change by interval, category, and transition"
+author: "Sam Khallaghi"
+date: "`r Sys.Date()`"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Intensity analysis}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  fig.width=8.5, 
+  fig.height=5.5,
+  comment = "#>"
+)
+```
+
+```{r LoadPackages, include = FALSE}    
+library(raster)
+library(diffeR)
+library(intensity.analysis)
+```
+
+## Data
+
+This tutorial illustrates the concepts by using three dummy maps of land categories at the years 2005, 2010, and 2012. Each map consist of nine pixels representing three categories: Water, Trees and Impervious.
+
+The maps are available in "rst" format and included in the package. The intensity.analysis package can read all supported raster formats through RGDAL library.
+The first step is to read the raster files and put them in a list.
+
+```{r, eval=TRUE, warning=FALSE}
+# Read the raster files from example data.
+raster_2005 <- raster(system.file("external/RASTER_2005.RST", package="intensity.analysis"))
+raster_2010 <- raster(system.file("external/RASTER_2010.RST", package="intensity.analysis"))
+raster_2012 <- raster(system.file("external/RASTER_2012.RST", package="intensity.analysis"))
+```
+
+```{r, eval=TRUE, warning=FALSE}
+# Make a list of raster objects.
+raster.layers <- list(raster_2005, raster_2010, raster_2012)
+```
+
+Next, using the **multicrosstab** function, we overlay the 2005 map with the 2010 map and then the 2010 map with the 2012 map to produce a crosstabulation table for each time interval. The output of the function is a list containing crosstabulation tables in which the rows are the categories of the initial time and the columns are the categories of the final time of each interval.
+The **multicrosstab** function needs two more arguments namely time points and categories, both as character vectors. The raster layer list and time points vector must have the years in the same chronological order. The names in the categories vector must be equivalent to the ID of categories in the raster attribute table of the categorical maps. 
+
+
+```{r, eval=TRUE, warning=FALSE}
+# character vector of time points.
+time.points <- c("2005","2010","2012")
+
+# character vector of land categories.
+categories <- c("Water","Trees","Impervious")
+
+# Calling crosstabulation function.
+crosstabulation <- multicrosstab(raster.layers, time.points, categories)
+crosstabulation
+```
+
+We now proceed to the three level intensity analysis using crosstabulation tables for each consecutive pair of time points.
+
+## Interval level
+Interval level analysis shows the size of change and the speed of change during each time interval. Analysis denotes the speed of change during each interval as either slow or fast.
+
+Execution of the **IIA** function, generates proper graphs that show the "Change Size" and "Change Intensity" for all time intervals.
+
+```{r, eval=TRUE, warning=FALSE}
+# Calling IIA(Interval Intensity Analysis) function.
+IIA.output <- IIA(crosstabulation, time.points)
+```
+
+The package also produces numerical output for "Change Size", "Uniform Intensity of Change", "Uniform Change all Intervals", "Interval behavior" for each interval.
+
+```{r, eval=TRUE, echo=FALSE, warning=FALSE}
+IIA.output
+```
+
+The **IIA2csv** function reads the output of the **IIA** function and a filename string as arguments then makes a CSV report of the interval level intensity analysis and saves it in a user specified location. In case only the name of the file is provided, then the csv file will be stored in the working directory.
+
+```{r, eval=FALSE, echo=TRUE, warning=FALSE}
+# Set the filename argument to the directory you want to store the csv results.
+filename <- file.path(normalizePath(tempdir(), winslash = "/"), "IIA.csv")
+IIA2csv(IIA.output,time.points, filename)
+```
+
+
+## Category level
+THe category level computes the size of annual change for each category in the form of its annual gross loss and annual gross gain during each time interval. The package also computes the **Annual Loss Intensity** by computing the size of each gross annual loss divided by the size of the category at the initial time point of the interval. The package computes the **Annual Gain Intensity** by computing the size of each gross annual gain divided by the size of the category at the final time point of the interval. Comparing these intensities with uniform change in the study area reveals the land categories that are relatively dormant versus active in terms of loss and gain during a given time interval and provides the means to explore the stability of the pattern across time intervals.
+
+Execution of the **CIA** function, generates graphs that show the "Annual size" and "Annual intensity" of loss and gain for each category during each time interval. If the input data are raster maps, then **# of elements** in the figures means the number of pixels. 
+
+```{r, eval=TRUE, warning=FALSE}
+# Calling CIA(Category Intensity Analysis) function.
+CIA.output <- CIA(crosstabulation, time.points, categories)
+```
+
+The package returns also numerical values for "Annual Gross Loss", "Annual Gross Gain", "Annual Loss Intensity", "Annual Gain Intensity", "Uniform Category Intensity", "Annual Loss Intensity Behavior" and "Annual Gain Intensity Behavior".
+
+```{r, eval=TRUE, echo=FALSE, warning=FALSE}
+CIA.output
+```
+
+The **CIA2csv** function reads the output of **CIA** function and a filename string as arguments and makes a CSV report of the category level intensity analysis and saves it in a user specified location. In case only the name of the file is provided, then the csv file will be stored in the working directory.
+
+```{r, eval=FALSE, echo=TRUE, warning=FALSE}
+# Set the filename argument to the directory you want to store the csv results.
+filename <- file.path(normalizePath(tempdir(), winslash = "/"), "CIA.csv")
+CIA2csv(CIA.output,time.points, categories, filename)
+```
+
+## Transition level
+The transition level computes the size and intensity of each transition from one category to another category during each time interval. The package produces a pair of graphs for each category’s gross gain. The first graph shows the size of the annual transition. The second figure shows the intensity of the annual transition, which is the size of the annual transition divided by the initial size of the losing category. Comparison of each intensity to its corresponding uniform intensity indicates whether the gaining category avoids or targets each particular losing category. Users can then see whether the patterns are stable across time intervals. 
+
+The **TIA** function, generates graphs to show the "Annual Transition Size" and "Annual Transition Intensity" for gain of each category during each time interval.
+
+```{r, eval=TRUE, warning=FALSE}
+# Calling TIA(Transition Intensity Analysis) function.
+TIA.output <- TIA(crosstabulation, time.points, categories)
+```
+
+The package produces "Annual Transition Size", "Transition Intensity", "Uniform Transition" and "Transition Behavior" for the gross gain of each category during each time interval.
+
+```{r, eval=TRUE, echo=FALSE, warning=FALSE}
+TIA.output
+```
+
+The **TIA2csv** function reads the output of the **TIA** function and a filename string as arguments then makes a CSV report of the Transition level Intensity Analysis and saves it in a user specified location. In case only the name of the file is provided, then the csv file will be stored in the working directory.
+
+```{r, eval=FALSE, echo=TRUE, warning=FALSE}
+# Set the filename argument to the directory you want to store the csv results.
+filename <- file.path(normalizePath(tempdir(), winslash = "/"), "TIA.csv")
+TIA2csv(TIA.output,time.points,categories, filename)
+```
+
+
+## References
+Aldwaik,Safaa Zakaria and Robert Gilmore Pontius Jr. (2012). Intensity analysis to unify measurements of size and stationarity of land changes by interval, category, and transition. Landscape and Urban Planning. 106, 103-114.
+
+Pontius Jr, Robert Gilmore, Yan Gao, Nicholas Giner, Takashi Kohyama, Mitsuru Osaki and Kazuyo Hirose. (2013). Design and Interpretation of Intensity Analysis Illustrated by Land Change in Central Kalimantan, Indonesia. Land. 2(3), 351-369.
